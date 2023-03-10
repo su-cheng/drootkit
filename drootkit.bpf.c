@@ -1,9 +1,10 @@
 // SPDX-License-Identifier: GPL-2.0 OR BSD-3-Clause
 /* Copyright (c) 2020 Facebook */
-#include <linux/bpf.h>
-#include <linux/ptrace.h>
+//#include <linux/bpf.h>
+//#include <linux/ptrace.h>
 #include <bpf/bpf_helpers.h>
 #include <bpf/bpf_tracing.h>
+#include "vmlinux.h"
 
 char LICENSE[] SEC("license") = "Dual BSD/GPL";
 
@@ -43,6 +44,52 @@ SEC("uprobe")
 int BPF_KPROBE(Syscalls_Intergrity_Check_Entry)
 {
 	bpf_printk("SyscallsIntergrityCheck ENTRY");
+
+    // char syscall_table_sym[15] = "sys_call_table";
+    // u64 *syscall_table_addr = (u64 *) get_symbol_addr(syscall_table_sym);
+    // if (unlikely(syscall_table_addr == 0)) {
+    //     return 0;
+    // }
+
+    // char start_text_sym[7] = "_stext";
+    // void *stext_addr = get_symbol_addr(start_text_sym);
+    // if (unlikely(stext_addr == NULL)) {
+    //     return 0;
+    // }
+
+    // char end_text_sym[7] = "_etext";
+    // void *etext_addr = get_symbol_addr(end_text_sym);
+    // if (unlikely(etext_addr == NULL)){
+    //     return 0;
+    // }
+    
+    // u64 idx;
+    // unsigned long syscall_addr = 0;
+    // u64 syscall_address[NUMBER_OF_SYSCALLS_TO_CHECK];
+
+    // for (int i = 0; i < NUMBER_OF_SYSCALLS_TO_CHECK; i++) {
+    //     idx = i;
+    //     // syscalls_to_check_map format: [syscall#][syscall#][syscall#]
+    //     u64 *syscall_num_p = bpf_map_lookup_elem(&syscalls_to_check_map, (void *) &idx);
+    //     if (syscall_num_p == NULL) {
+    //         syscall_address[i] = 0;
+    //         continue;
+    //     }
+
+    //     syscall_addr = READ_KERN(syscall_table_addr[*syscall_num_p]);
+    //     if (syscall_addr == 0) {
+    //         return 0;
+    //     }
+
+    //     // skip if in text segment range
+    //     if (syscall_addr >= (u64) stext_addr && syscall_addr < (u64) etext_addr) {
+    //         syscall_address[i] = 0;
+    //         continue;
+    //     }
+
+    //     syscall_address[i] = syscall_addr;
+    // }
+
 	return 0;
 }
 

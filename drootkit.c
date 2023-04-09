@@ -14,6 +14,7 @@
 #include <stdlib.h>
 #include <unistd.h>
 #include <string.h>
+#include <time.h>
 #include <sys/resource.h>
 #include <bpf/libbpf.h>
 #include "drootkit.skel.h"
@@ -72,13 +73,13 @@ typedef struct kernel_symbol_table
 #define MAX_KSYM_NAME_SIZE 64
 typedef struct ksym_name 
 {
-    char str[MAX_KSYM_NAME_SIZE];
+	char str[MAX_KSYM_NAME_SIZE];
 } ksym_name_t;
 
 #define MAX_KSYM_OWNER_SIZE 64
 typedef struct ksym_owner 
 {
-    char str[MAX_KSYM_OWNER_SIZE];
+	char str[MAX_KSYM_OWNER_SIZE];
 } ksym_owner_t;
 
 static int libbpf_print_fn(enum libbpf_print_level level, const char *format, va_list args) 
@@ -87,27 +88,58 @@ static int libbpf_print_fn(enum libbpf_print_level level, const char *format, va
 }
 
 struct event {
-    unsigned long long int ts;
-    int sys_id;
-    char sys_name[MAX_KSYM_NAME_SIZE];
-    unsigned long long int sys_fake_addr;
-    unsigned long long int sys_real_addr;
-    char sys_owner[MAX_KSYM_OWNER_SIZE];
+	unsigned long long int ts;
+	int sys_id;
+	char sys_name[MAX_KSYM_NAME_SIZE];
+	unsigned long long int sys_fake_addr;
+	unsigned long long int sys_real_addr;
+	char sys_owner[MAX_KSYM_OWNER_SIZE];
 };
+
+void get_date(unsigned long long timenum) {
+	int nanoseconds = timenum % 1000000000;
+	int sec =  timenum / 1000000000;
+	int day = (int) (sec / 86400);
+	int temp = sec % 86400;
+	int hour = (int) (temp / 3600);
+	int minute = (int) (temp % 3600 / 60);
+	int second = temp % 60;
+
+	double s = second + nanoseconds / 1000000000.0;
+
+	printf("The system call hooking was discovered after the system ran for %d days %dh %dm %.9lfs\n", day, hour, minute, s);
+	return ;
+}
 
 int handle_event(void *ctx, void *data, size_t data_sz)
 {
 	const struct event *e = data;
+	struct tm *tm;
+	char date[32];
+	char ts[32];
+	time_t t;
+
+	time(&t);
+	tm = localtime(&t);
+	strftime(date, sizeof(date), "%Y-%m-%d", tm);
+	strftime(ts, sizeof(ts), "%H:%M:%S", tm);
 	
-	/*打印警告信息*/
-	fprintf(stderr, "Signature ID: RULE-1\n");
-	fprintf(stderr, "Signature: Anti-Debugging\n");
-	fprintf(stderr, "Command: %s\n", comm);
-	fprintf(stderr, "Hostid: %d\n", host_pid);
-	/*调用恢复系统调用表和卸载恶意代码模块的脚本*/
-	// FILE *fp = fopen("./syscall.txt", "a");
-	// fprintf(fp, "%d %llx\n", e->sysno, e->syscall_addr);
-	// fclose(fp);
+	/* Print a warning message */
+	fprintf(stderr, "Now is %s %s\n", date, ts);
+	get_date(e->ts);
+	fprintf(stderr, "Tampered system call: %d, %s\n", e->sys_id, e->sys_name);
+	fprintf(stderr, "fake address: %lld\n", e->sys_fake_addr);
+	fprintf(stderr, "real address: %lld\n", e->sys_real_addr);
+	fprintf(stderr, "Malicious kernel module: %s\n", e->sys_owner);
+	
+	/* Recovery system call */
+	char cmd[100];
+	// sprintf(cmd, "./recovery.sh -i %s", re_syscall.ko);
+	// system(cmd);
+
+	/* Uninstalling malicious kernel modules */
+	sprintf(cmd, "./recovery.sh -r %s", e->sys_owner);
+	system(cmd);
 
 	return 0;
 }
@@ -156,7 +188,8 @@ void SyscallsIntergrityCheck()
 }
 
 int main(int argc, char **argv) 
-{
+{	
+	get_date(760886613318701);
 	struct drootkit_bpf *skel;
 	long uprobe_offset;
 	int err;
@@ -212,7 +245,6 @@ int main(int argc, char **argv)
 		strcpy(need_symbol, syscall_64[i]);
 		if (!insert_item_over(&kernel_symbol_needed, (void *)need_symbol, strlen(need_symbol), NULL))
 		{	
-			printf("fail=%s\n", need_symbol);
 			fprintf(stderr, "Inserting an item into the kernel_symbol_needed failed\n");
 			goto cleanup;
 		}
@@ -311,8 +343,8 @@ int main(int argc, char **argv)
 				if(temp == NULL) {
 					printf("error!\n");
 				} else {
-					KernelSymbol *item = (KernelSymbol *)temp->value; 
-					printf("symbol_map: %llx %s %s %s\n", *(item->address), item->type, item->name, item->owner);
+					//KernelSymbol *item = (KernelSymbol *)temp->value; 
+					//printf("symbol_map: %llx %s %s %s\n", *(item->address), item->type, item->name, item->owner);
 				}
 			}
 		}
@@ -330,8 +362,8 @@ int main(int argc, char **argv)
 				if(temp == NULL) {
 					printf("error!\n");
 				} else {
-					KernelSymbol *item = (KernelSymbol *)temp->value; 
-					printf("symbol_address_map: %llx %s %s %s\n", *(item->address), item->type, item->name, item->owner);
+					//KernelSymbol *item = (KernelSymbol *)temp->value; 
+					//printf("symbol_address_map: %llx %s %s %s\n", *(item->address), item->type, item->name, item->owner);
 				}
 			}
 		}

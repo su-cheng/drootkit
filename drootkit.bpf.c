@@ -5,8 +5,7 @@
  *    of kernel modules used to hijack system calls.
  *    This project is implemented by eBPF, there is the kernel side.
  * @TODO：
- *    1. Pass information to the user side.
- *    2. Track the call of a tampered system call, 
+ *    1. Track the call of a tampered system call, 
  *       to find the process that called it.
  */
 
@@ -129,6 +128,7 @@ static __always_inline void *get_symbol_owner(u64 symbol_address)
 SEC("uprobe")
 int BPF_KPROBE(Syscalls_Intergrity_Check_Entry)
 {
+    bpf_printk("ts=%llu", bpf_ktime_get_ns());
     const char start_text_sym[7] = "_stext";
     u64 *stext_addr = (u64 *)get_symbol_addr(start_text_sym);
     if (unlikely(stext_addr == NULL)) {
@@ -179,8 +179,6 @@ int BPF_KPROBE(Syscalls_Intergrity_Check_Entry)
             e->sys_fake_addr = syscall_addr;
             bpf_probe_read(&e->sys_real_addr, sizeof(u64), (u64 *)get_symbol_addr(syscall_64[i]));
             bpf_probe_read_str(e->sys_owner, MAX_KSYM_OWNER_SIZE, sys_owner->str);
-            
-            /*恢复系统调用地址*/
 
             /* Submit information */       
             bpf_ringbuf_submit(e, 0);

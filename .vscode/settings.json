@@ -1,5 +1,6 @@
 {
     "files.associations": {
-        "typeinfo": "cpp"
+        "typeinfo": "cpp",
+        "syscall.h": "c"
     }
 }

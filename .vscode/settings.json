@@ -1,6 +1,7 @@
 {
     "files.associations": {
         "typeinfo": "cpp",
-        "syscall.h": "c"
+        "syscall.h": "c",
+        "vmlinux.h": "c"
     }
 }

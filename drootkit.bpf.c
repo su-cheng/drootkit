@@ -10,13 +10,14 @@
  */
 
 #include "vmlinux.h"
-#include "syscall.h"
 #include <bpf/bpf_helpers.h>
 #include <bpf/bpf_tracing.h>
 
 char LICENSE[] SEC("license") = "Dual BSD/GPL";
 
 typedef unsigned long long u64;
+typedef unsigned int u32;
+#define MAX_SYSCALL_ID 457
 
 #ifndef likely
     #define likely(x) __builtin_expect((x), 1)
@@ -50,14 +51,8 @@ typedef struct ksym_name
     char str[MAX_KSYM_NAME_SIZE];
 } ksym_name_t;
 
-#define MAX_KSYM_OWNER_SIZE 64
-typedef struct ksym_owner 
-{
-    char str[MAX_KSYM_OWNER_SIZE];
-} ksym_owner_t;
-
 BPF_HASH(ksymbols_map, ksym_name_t, u64, 4096);        //we can find symbol address by symbol name through ksymbols_map
-BPF_HASH(address_map, u64, ksym_owner_t, 140000);      //we can find symbol owner by symbol address through address_map
+BPF_HASH(syscall_map, u32, ksym_name_t, 512);         //we can find syscall name by syscall id through syscall_map
 
 typedef struct event {
     u64 ts;
@@ -65,10 +60,9 @@ typedef struct event {
     char sys_name[MAX_KSYM_NAME_SIZE];
     u64 sys_fake_addr;
     u64 sys_real_addr;
-    char sys_owner[MAX_KSYM_OWNER_SIZE];
 } event_t;
 
-struct ringbuf_map{
+struct ringbuf_map {
 	__uint(type, BPF_MAP_TYPE_RINGBUF);
 	__uint(max_entries, 1 << 18 );
 } rb SEC(".maps");
@@ -85,15 +79,14 @@ static __always_inline void *get_symbol_addr(const char *symbol_name)
     return *sym;
 }
 
-static __always_inline void *get_symbol_owner(u64 symbol_address)
-{   
-    u64 new_ksym_address = symbol_address;
-    void **sym = bpf_map_lookup_elem(&address_map, (void *) &new_ksym_address);
+static __always_inline void *get_syscall_name(u32 id)
+{
+    ksym_name_t *sym = bpf_map_lookup_elem(&syscall_map, (void *) &id);
 
     if (sym == NULL)
         return 0;
 
-    return *sym;
+    return sym;
 }
 
 /*
@@ -122,25 +115,23 @@ static __always_inline void *get_symbol_owner(u64 symbol_address)
  *    are independent of each other. The original system call entry address is in the kernel 
  *    core text segment, so if the current item does not belong to the kernel core text segment, 
  *    it can be determined to have been tampered with.
- * 4. locate the malicious kernel module that tampers with the system call address and send the 
- *    tampered system call information to the user side.
  */
+
 SEC("uprobe")
 int BPF_KPROBE(Syscalls_Intergrity_Check_Entry)
 {
-    bpf_printk("ts=%llu", bpf_ktime_get_ns());
     const char start_text_sym[7] = "_stext";
     u64 *stext_addr = (u64 *)get_symbol_addr(start_text_sym);
     if (unlikely(stext_addr == NULL)) {
         return 0;
     }
- 
+
     const char end_text_sym[7] = "_etext";
     u64 *etext_addr = (u64 *)get_symbol_addr(end_text_sym);
     if (unlikely(etext_addr == NULL)){
         return 0;
     }
-    
+
     const char syscall_table_sym[15] = "sys_call_table";
     u64 *syscall_table_addr = (u64 *)get_symbol_addr(syscall_table_sym);
     if (unlikely(syscall_table_addr == NULL)) {
@@ -148,13 +139,12 @@ int BPF_KPROBE(Syscalls_Intergrity_Check_Entry)
     }
 
     event_t *e;
-    ksym_owner_t *sys_owner;
     for (int i = 0; i < MAX_SYSCALL_ID; i++) {
         u64 syscall_addr = READ_KERN(syscall_table_addr[i]);
         if (syscall_addr == 0) {
             return 0;
         }
-
+        
         if (syscall_addr >= (u64) stext_addr && syscall_addr < (u64) etext_addr) {
             continue;
         } else {
@@ -162,23 +152,19 @@ int BPF_KPROBE(Syscalls_Intergrity_Check_Entry)
             if (!e) {
                 return 0;
             }
-            /* Locate the malicious kernel module */
-            sys_owner = (ksym_owner_t *)get_symbol_owner(syscall_addr);
-
+            
             /* Collect information about the tampered system call:
              * 1. current timestamp.
              * 2. the id of the system call that was tampered with.
              * 3. the name of the system call that was tampered with.
              * 4. fake system call address.
              * 5. real system call address.
-             * 6. the kernel module to which the tampered system call belongs.
              */
             e->ts = bpf_ktime_get_ns();
             e->sys_id = i;
-            bpf_probe_read_str(e->sys_name, MAX_KSYM_NAME_SIZE, syscall_64[i]);
+            bpf_probe_read(e->sys_name, sizeof(e->sys_name), ((ksym_name_t *)get_syscall_name(i))->str);
             e->sys_fake_addr = syscall_addr;
-            bpf_probe_read(&e->sys_real_addr, sizeof(u64), (u64 *)get_symbol_addr(syscall_64[i]));
-            bpf_probe_read_str(e->sys_owner, MAX_KSYM_OWNER_SIZE, sys_owner->str);
+            e->sys_real_addr = (u64)get_symbol_addr(e->sys_name);
 
             /* Submit information */       
             bpf_ringbuf_submit(e, 0);

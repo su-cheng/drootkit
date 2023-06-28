@@ -23,9 +23,9 @@ VMLINUX := ../../vmlinux/$(ARCH)/vmlinux.h
 # outdated
 INCLUDES := -I$(OUTPUT) -I../../libbpf/include/uapi -I$(dir $(VMLINUX))
 CFLAGS := -g -Wall 
-ifeq ($(ARCH), "arm64")
+ifeq ($(ARCH),arm64)
 	CFLAGS += -D__TARGET_ARCH_ARM64
-else ifeq ($(ARCH), "x86")
+else ifeq ($(ARCH),x86)
 	CFLAGS += -D__TARGET_ARCH_X86_64
 endif
 

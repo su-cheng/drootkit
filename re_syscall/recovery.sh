@@ -5,8 +5,8 @@
 	uninstalling the malicious kernel module and loading 
 	the module used to recover the system call address.
 	
-        This script should not be called manually, it should be
-        triggered by the drootkit tool.
+	This script should not be called manually, it should be
+	triggered by the drootkit tool.
 
 	The script has two main options:
 	"-i" : followed by the name of the kernel module to be loaded

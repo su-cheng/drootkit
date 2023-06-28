@@ -225,8 +225,8 @@ int handle_event(void *ctx, void *data, size_t data_sz)
 	fprintf(stderr, "Now is %s %s\n", date, ts);
 	get_date(e->ts);
 	fprintf(stderr, "Tampered system call: %d, %s\n", e->sys_id, e->sys_name);
-	fprintf(stderr, "fake address: %llx\n", e->sys_fake_addr);
-	fprintf(stderr, "real address: %llx\n", e->sys_real_addr);
+	fprintf(stderr, "fake address: 0x%llx\n", e->sys_fake_addr);
+	fprintf(stderr, "real address: 0x%llx\n", e->sys_real_addr);
 	fprintf(stderr, "Malicious kernel module: %s\n", sys_owner);
 	fprintf(stderr, "******************************************************\n");
 
@@ -343,8 +343,8 @@ int main(int argc, char **argv)
 	
 	for(int i = 0; i < MAX_SYSCALL_ID; ++i) 
 	{
-		char *need_symbol = malloc(strlen(syscall_64[i]) + 1);
-		strcpy(need_symbol, syscall_64[i]);
+		char *need_symbol = malloc(strlen(SYSCALL_MAP[i]) + 1);
+		strcpy(need_symbol, SYSCALL_MAP[i]);
 		if (!insert_item_over(&kernel_symbol_needed, (void *)need_symbol, strlen(need_symbol), NULL))
 		{	
 			fprintf(stderr, "Inserting an item into the kernel_symbol_needed failed\n");
@@ -515,10 +515,10 @@ int main(int argc, char **argv)
 		fprintf(stderr, "Failed to find syscall_map: %d\n", err);
 		goto cleanup;
 	}
-	for (int i = 0; i < MAX_SYSCALL_64_ID; ++i) {
+	for (int i = 0; i < MAX_SYSCALL_ID; ++i) {
 		unsigned int key = i;
 		ksym_name_t *value = malloc(sizeof(ksym_name_t));
-		strcpy(value->str, syscall_64[i]);
+		strcpy(value->str, SYSCALL_MAP[i]);
 		err = bpf_map__update_elem(bpf_syscall_map, &key, sizeof(key), value, sizeof(ksym_name_t), BPF_ANY);
 		if (err)
 		{

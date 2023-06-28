@@ -11,17 +11,24 @@ LIBBLAZESYM_SRC := $(abspath ../../blazesym/)
 LIBBLAZESYM_OBJ := $(abspath $(OUTPUT)/libblazesym.a)
 LIBBLAZESYM_HEADER := $(abspath $(OUTPUT)/blazesym.h)
 ARCH ?= $(shell uname -m | sed 's/x86_64/x86/' \
+			 | sed 's/arm.*/arm/' \
 			 | sed 's/aarch64/arm64/' \
 			 | sed 's/ppc64le/powerpc/' \
 			 | sed 's/mips.*/mips/' \
-			 | sed 's/arm.*/arm/' \
 			 | sed 's/riscv64/riscv/')
 VMLINUX := ../../vmlinux/$(ARCH)/vmlinux.h
+
 # Use our own libbpf API headers and Linux UAPI headers distributed with
 # libbpf to avoid dependency on system-wide headers, which could be missing or
 # outdated
 INCLUDES := -I$(OUTPUT) -I../../libbpf/include/uapi -I$(dir $(VMLINUX))
-CFLAGS := -g -Wall
+CFLAGS := -g -Wall 
+ifeq ($(ARCH), "arm64")
+	CFLAGS += -D__TARGET_ARCH_ARM64
+else ifeq ($(ARCH), "x86")
+	CFLAGS += -D__TARGET_ARCH_X86_64
+endif
+
 ALL_LDFLAGS := $(LDFLAGS) $(EXTRA_LDFLAGS)
 
 APPS = minimal minimal_legacy bootstrap uprobe kprobe fentry usdt sockfilter tc drootkit

@@ -42,6 +42,7 @@ asmlinkage long __arm64_sys_my_new_syscall(const struct pt_regs *regs)
 	int ret;
 
 	exit_count = 1;
+	pr_info("%s: hello, I have hacked this syscall\n", __func__);
 	if (orig_syscall) {
 		ret = orig_syscall(regs);
 		exit_count = 0;
